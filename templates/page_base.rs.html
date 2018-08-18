@@ -12,10 +12,13 @@
   </head>
   <body>
     <header>
+      <span>Example app</span>
       @*
       @if let Some(u) = MySession::get_user(state) {<span class="user">@u (<a href="/logout">log out</a>)</span>}
-      else {<span class="user">(<a href="/login@if let Some(p) = Uri::try_borrow_from(state) {?next=@p}">log in</a>)</span>}
-      *@
+      else { *@
+      <span class="user">(<a href="/login">log in</a> or
+	<a href="/signup">sign up</a>)</span>
+      @* } *@
     </header>
 
     <main>

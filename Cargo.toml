@@ -1,5 +1,5 @@
 [package]
-name = "warp-ructe"
+name = "warp-db-session"
 version = "0.1.0"
 authors = ["Rasmus Kaj <kaj@kth.se>"]
 
@@ -12,3 +12,9 @@ ructe = { version = "0.4.0", features = ["sass", "mime03"] }
 warp = "0.1.2"
 mime = "0.3.0"
 env_logger = "0.5.0"
+log = "*"
+diesel = { version = "1.0.0", features = ["r2d2", "postgres"] }
+dotenv = "0.13.0"
+serde = "1.0.0"
+serde_derive = "1.0.0"
+bcrypt = "0.2.0"

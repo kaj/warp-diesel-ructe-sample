@@ -1,0 +1,18 @@
+@use templates::page_base;
+
+@(message: Option<&str>)
+
+@:page_base("login", {
+    <form action="" method="post">
+      @if let Some(message) = message {<p>@message</p>}
+      <p><label for="user">User:</label>
+	<input id="user" name="user"></p>
+      <p><label for="realname">Name:</label>
+	<input id="realname" name="realname"></p>
+      <p><label for="password">Password:</label>
+	<input id="password" name="password" type="password"></p>
+      <p><span>[<a href="/">Cancel</a>]</span>
+	<input type="submit" value="Log in">
+      </p>
+    </form>
+})
