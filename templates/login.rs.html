@@ -1,0 +1,18 @@
+@use templates::page_base;
+
+@(next: Option<String>, message: Option<&str>)
+
+@:page_base("login", {
+    <form action="/login" method="post">
+      @if let Some(message) = message {<p>@message</p>}
+      <p><label for="user">User:</label>
+	<input id="user" name="user"></p>
+      <p><label for="password">Password:</label>
+	<input id="password" name="password" type="password"></p>
+      <p><span>@if let Some(ref next) = next {
+	  <input type="hidden" name="next" value="@next">
+	  }</span>
+	<input type="submit" value="Log in">
+      </p>
+    </form>
+})
