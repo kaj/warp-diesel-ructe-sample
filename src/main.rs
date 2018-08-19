@@ -22,7 +22,7 @@ use diesel::insert_into;
 use diesel::prelude::*;
 use dotenv::dotenv;
 use render_ructe::RenderRucte;
-use session::{pg_pool, Session};
+use session::{create_session_filter, Session};
 use std::env;
 use std::io::{self, Write};
 use std::time::{Duration, SystemTime};
@@ -35,23 +35,9 @@ fn main() {
     dotenv().ok();
     env_logger::init();
 
-    // setup the the connection pool to get a session with a
-    // connection on each request
-    use warp::filters::cookie;
-    let pool =
-        pg_pool(&env::var("DATABASE_URL").expect("DATABASE_URL must be set"));
-    let pgsess = warp::any().and(cookie::optional("EXAUTH")).and_then(
-        move |key: Option<String>| {
-            let pool = pool.clone();
-            let key = key.as_ref().map(|s| &**s);
-            match pool.get() {
-                Ok(conn) => Ok(Session::from_key(conn, key)),
-                Err(_) => {
-                    error!("Failed to get a db connection");
-                    Err(reject::server_error())
-                }
-            }
-        },
+    // Get a filter that adds a session to each request.
+    let pgsess = create_session_filter(
+        &env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
     );
     let s = move || pgsess.clone();
 
@@ -90,40 +76,16 @@ fn login_form(session: Session) -> Result<impl Reply, Rejection> {
 /// home page.
 /// Otherwise, show the login form again, but with a message.
 fn do_login(
-    session: Session,
+    mut session: Session,
     form: LoginForm,
 ) -> Result<impl Reply, Rejection> {
-    use schema::users::dsl::*;
-    let authenticated = users
-        .filter(username.eq(&form.user))
-        .select((id, password))
-        .first(session.db())
-        .map_err(|e| {
-            error!("Failed to load hash for {:?}: {:?}", form.user, e);
-            ()
-        }).and_then(|(userid, hash): (i32, String)| {
-            match bcrypt::verify(&form.password, &hash) {
-                Ok(true) => Ok(userid),
-                Ok(false) => Err(()),
-                Err(e) => {
-                    error!("Verify failed for {:?}: {:?}", form.user, e);
-                    Err(())
-                }
-            }
-        });
-    if let Ok(userid) = authenticated {
-        info!("User {} ({}) authenticated", userid, form.user);
-        let secret = session.create(userid).map_err(|e| {
-            error!("Failed to create session: {}", e);
-            reject::server_error()
-        })?;
-
+    if let Some(cookie) = session.authenticate(&form.user, &form.password) {
         Response::builder()
             .status(StatusCode::FOUND)
             .header(header::LOCATION, "/")
             .header(
                 header::SET_COOKIE,
-                format!("EXAUTH={}; SameSite=Strict; HttpOpnly", secret),
+                format!("EXAUTH={}; SameSite=Strict; HttpOpnly", cookie),
             ).body(b"".to_vec())
             .map_err(|_| reject::server_error()) // TODO This seems ugly?
     } else {

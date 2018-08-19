@@ -2,11 +2,12 @@ use diesel::insert_into;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
-use diesel::result::Error;
 use models::User;
 use rand::distributions::Alphanumeric;
 use rand::thread_rng;
 use rand::Rng;
+use warp::filters::{cookie, BoxedFilter};
+use warp::{self, reject, Filter};
 
 type PooledPg = PooledConnection<ConnectionManager<PgConnection>>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
@@ -25,6 +26,37 @@ pub struct Session {
 }
 
 impl Session {
+    /// Attempt to authenticate a user for this session.
+    ///
+    /// If the username and password is valid, create and return a session key.
+    /// If authentication fails, simply return None.
+    pub fn authenticate(
+        &mut self,
+        username: &str,
+        password: &str,
+    ) -> Option<String> {
+        if let Some(user) = User::authenticate(self.db(), username, password)
+        {
+            info!("User {:?} authenticated", user);
+
+            let secret = random_key(48);
+            use schema::sessions::dsl::*;
+            let result = insert_into(sessions)
+                .values((user_id.eq(user.id), cookie.eq(&secret)))
+                .execute(self.db());
+            if Ok(1) == result {
+                self.user = Some(user);
+                return Some(secret);
+            } else {
+                error!(
+                    "Failed to create session for {}: {:?}",
+                    user.username, result,
+                );
+            }
+        }
+        None
+    }
+
     pub fn from_key(db: PooledPg, sessionkey: Option<&str>) -> Self {
         use schema::sessions::dsl as s;
         use schema::users::dsl as u;
@@ -39,14 +71,6 @@ impl Session {
         info!("Got: {:?}", user);
         Session { db, user }
     }
-    pub fn create(&self, userid: i32) -> Result<String, Error> {
-        let secret_cookie = random_key(48);
-        use schema::sessions::dsl::*;
-        insert_into(sessions)
-            .values((user_id.eq(userid), cookie.eq(&secret_cookie)))
-            .execute(self.db())?;
-        Ok(secret_cookie)
-    }
     pub fn user(&self) -> Option<&User> {
         self.user.as_ref()
     }
@@ -60,8 +84,24 @@ fn random_key(len: usize) -> String {
     rng.sample_iter(&Alphanumeric).take(len).collect()
 }
 
-// TODO Not public
-pub fn pg_pool(database_url: &str) -> PgPool {
+pub fn create_session_filter(db_url: &str) -> BoxedFilter<(Session,)> {
+    let pool = pg_pool(db_url);
+    warp::any()
+        .and(cookie::optional("EXAUTH"))
+        .and_then(move |key: Option<String>| {
+            let pool = pool.clone();
+            let key = key.as_ref().map(|s| &**s);
+            match pool.get() {
+                Ok(conn) => Ok(Session::from_key(conn, key)),
+                Err(_) => {
+                    error!("Failed to get a db connection");
+                    Err(reject::server_error())
+                }
+            }
+        }).boxed()
+}
+
+fn pg_pool(database_url: &str) -> PgPool {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     Pool::new(manager).expect("Postgres connection pool could not be created")
 }
