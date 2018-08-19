@@ -1,8 +1,9 @@
 @use templates::page_base;
+@use Session;
 
-@(message: Option<&str>)
+@(session: &Session, message: Option<&str>)
 
-@:page_base("login", {
+@:page_base(session, "Sign up", {
     <form action="" method="post">
       @if let Some(message) = message {<p>@message</p>}
       <p><label for="user">User:</label>
@@ -12,7 +13,7 @@
       <p><label for="password">Password:</label>
 	<input id="password" name="password" type="password"></p>
       <p><span>[<a href="/">Cancel</a>]</span>
-	<input type="submit" value="Log in">
+	<input type="submit" value="Sign up">
       </p>
     </form>
 })

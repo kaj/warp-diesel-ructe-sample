@@ -1,8 +1,9 @@
 @use templates::page_base;
+@use Session;
 
-@(paras: &[(&str, usize)])
+@(session: &Session, paras: &[(&str, usize)])
 
-@:page_base("Example", {
+@:page_base(session, "Example", {
 
       <p>This is a simple sample page.</p>
 

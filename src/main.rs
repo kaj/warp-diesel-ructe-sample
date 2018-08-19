@@ -8,6 +8,7 @@ extern crate env_logger;
 #[macro_use]
 extern crate log;
 extern crate mime;
+extern crate rand;
 #[macro_use]
 extern crate serde_derive;
 extern crate warp;
@@ -15,18 +16,18 @@ extern crate warp;
 mod models;
 mod render_ructe;
 mod schema;
+mod session;
 
 use diesel::insert_into;
-use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use dotenv::dotenv;
 use render_ructe::RenderRucte;
+use session::{pg_pool, Session};
 use std::env;
 use std::io::{self, Write};
 use std::time::{Duration, SystemTime};
 use templates::statics::StaticFile;
-use warp::http::{Response, StatusCode};
+use warp::http::{header, Response, StatusCode};
 use warp::{reject, Filter, Rejection, Reply};
 
 /// Main program: Set up routes and start server.
@@ -34,83 +35,100 @@ fn main() {
     dotenv().ok();
     env_logger::init();
 
-    let pool = pg_pool();
-
-    // setup the the connection pool to get a connection on each request
-    let pg =
-        warp::any()
-            .map(move || pool.clone())
-            .and_then(|pool: PgPool| match pool.get() {
-                Ok(conn) => Ok(conn),
-                Err(_) => Err(reject::server_error()),
-            });
+    // setup the the connection pool to get a session with a
+    // connection on each request
+    use warp::filters::cookie;
+    let pool =
+        pg_pool(&env::var("DATABASE_URL").expect("DATABASE_URL must be set"));
+    let pgsess = warp::any().and(cookie::optional("EXAUTH")).and_then(
+        move |key: Option<String>| {
+            let pool = pool.clone();
+            let key = key.as_ref().map(|s| &**s);
+            match pool.get() {
+                Ok(conn) => Ok(Session::from_key(conn, key)),
+                Err(_) => {
+                    error!("Failed to get a db connection");
+                    Err(reject::server_error())
+                }
+            }
+        },
+    );
+    let s = move || pgsess.clone();
 
     use warp::{body, get2 as get, index, path, post2 as post};
-    let login_routes = path("login").and(index()).and(
-        get()
-            .and_then(login_form)
-            .or(post().and(pg.clone()).and(body::form()).and_then(do_login)),
-    );
-    let signup_routes = path("signup").and(index()).and(
-        get()
-            .and_then(signup_form)
-            .or(post().and(pg).and(body::form()).and_then(do_signup)),
-    );
-    let routes = get()
-        .and(
-            warp::index()
-                .and_then(home_page)
-                .or(path("static").and(path::param()).and_then(static_file))
-                .or(path("bad").and_then(bad_handler)),
-        ).or(login_routes)
-        .or(signup_routes)
-        .recover(customize_error);
+    let static_routes = get()
+        .and(path("static"))
+        .and(path::param())
+        .and_then(static_file);
+    let routes = warp::any()
+        .and(static_routes)
+        .or(get().and(
+            (s().and(index()).and_then(home_page))
+                .or(s().and(path("login")).and(index()).and_then(login_form))
+                .or(s()
+                    .and(path("signup"))
+                    .and(index())
+                    .and_then(signup_form)),
+        )).or(post().and(
+            (s().and(path("login")).and(body::form()).and_then(do_login)).or(
+                s().and(path("signup"))
+                    .and(body::form())
+                    .and_then(do_signup),
+            ),
+        )).recover(customize_error);
     warp::serve(routes).run(([127, 0, 0, 1], 3030));
 }
 
-type PgPool = Pool<ConnectionManager<PgConnection>>;
-type PooledPg = PooledConnection<ConnectionManager<PgConnection>>;
-
-fn pg_pool() -> PgPool {
-    let database_url =
-        env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let manager = ConnectionManager::<PgConnection>::new(database_url);
-    Pool::new(manager).expect("Postgres connection pool could not be created")
-}
-
 /// Render a login form.
-fn login_form() -> Result<impl Reply, Rejection> {
-    Response::builder().html(|o| templates::login(o, None, None))
+fn login_form(session: Session) -> Result<impl Reply, Rejection> {
+    Response::builder().html(|o| templates::login(o, &session, None, None))
 }
 
 /// Verify a login attempt.
-/// If the credentials in the LoginForm are correct, redirect to the home page.
+///
+/// If the credentials in the LoginForm are correct, redirect to the
+/// home page.
 /// Otherwise, show the login form again, but with a message.
-fn do_login(db: PooledPg, form: LoginForm) -> Result<impl Reply, Rejection> {
+fn do_login(
+    session: Session,
+    form: LoginForm,
+) -> Result<impl Reply, Rejection> {
     use schema::users::dsl::*;
     let authenticated = users
         .filter(username.eq(&form.user))
-        .select(password)
-        .first::<String>(&db)
+        .select((id, password))
+        .first(session.db())
         .map_err(|e| {
             error!("Failed to load hash for {:?}: {:?}", form.user, e);
             ()
-        }).and_then(|hash: String| {
-            bcrypt::verify(&form.password, &hash).map_err(|e| {
-                error!("Failed to verify hash for {:?}: {:?}", form.user, e)
-            })
-        }).unwrap_or(false);
-    eprintln!("Database result: {:?}", authenticated);
-    if authenticated {
+        }).and_then(|(userid, hash): (i32, String)| {
+            match bcrypt::verify(&form.password, &hash) {
+                Ok(true) => Ok(userid),
+                Ok(false) => Err(()),
+                Err(e) => {
+                    error!("Verify failed for {:?}: {:?}", form.user, e);
+                    Err(())
+                }
+            }
+        });
+    if let Ok(userid) = authenticated {
+        info!("User {} ({}) authenticated", userid, form.user);
+        let secret = session.create(userid).map_err(|e| {
+            error!("Failed to create session: {}", e);
+            reject::server_error()
+        })?;
+
         Response::builder()
             .status(StatusCode::FOUND)
-            .header("location", "/")
-            // TODO: Set a session cookie?
-            .body(b"".to_vec())
+            .header(header::LOCATION, "/")
+            .header(
+                header::SET_COOKIE,
+                format!("EXAUTH={}; SameSite=Strict; HttpOpnly", secret),
+            ).body(b"".to_vec())
             .map_err(|_| reject::server_error()) // TODO This seems ugly?
     } else {
         Response::builder().html(|o| {
-            templates::login(o, None, Some("Authentication failed"))
+            templates::login(o, &session, None, Some("Authentication failed"))
         })
     }
 }
@@ -123,16 +141,14 @@ struct LoginForm {
     password: String,
 }
 
-/// Render a login form.
-fn signup_form() -> Result<impl Reply, Rejection> {
-    Response::builder().html(|o| templates::signup(o, None))
+/// Render a signup form.
+fn signup_form(session: Session) -> Result<impl Reply, Rejection> {
+    Response::builder().html(|o| templates::signup(o, &session, None))
 }
 
-/// Verify a login attempt.
-/// If the credentials in the LoginForm are correct, redirect to the home page.
-/// Otherwise, show the login form again, but with a message.
+/// Handle a submitted signup form.
 fn do_signup(
-    db: PooledPg,
+    session: Session,
     form: SignupForm,
 ) -> Result<impl Reply, Rejection> {
     let result = form
@@ -149,21 +165,20 @@ fn do_signup(
                     username.eq(form.user),
                     realname.eq(form.realname),
                     password.eq(&hash),
-                )).execute(&db)
+                )).execute(session.db())
                 .map_err(|e| format!("Oops: {}", e))
         });
     match result {
         Ok(_) => {
             Response::builder()
                 .status(StatusCode::FOUND)
-                .header("location", "/")
+                .header(header::LOCATION, "/")
                 // TODO: Set a session cookie?
                 .body(b"".to_vec())
                 .map_err(|_| reject::server_error()) // TODO This seems ugly?
         }
-        Err(msg) => {
-            Response::builder().html(|o| templates::signup(o, Some(&msg)))
-        }
+        Err(msg) => Response::builder()
+            .html(|o| templates::signup(o, &session, Some(&msg))),
     }
 }
 
@@ -191,15 +206,11 @@ impl SignupForm {
 }
 
 /// Home page handler; just render a template with some arguments.
-fn home_page() -> Result<impl Reply, Rejection> {
+fn home_page(session: Session) -> Result<impl Reply, Rejection> {
+    info!("Visiting home_page as {:?}", session.user());
     Response::builder().html(|o| {
-        templates::page(o, &[("first", 3), ("second", 7), ("third", 2)])
+        templates::page(o, &session, &[("first", 3), ("second", 7)])
     })
-}
-
-/// A handler that always gives a server error.
-fn bad_handler() -> Result<StatusCode, Rejection> {
-    Err(reject::server_error())
 }
 
 /// This method can be used as a "template tag", i.e. a method that
@@ -208,8 +219,9 @@ fn footer(out: &mut Write) -> io::Result<()> {
     templates::footer(
         out,
         &[
-            ("ructe", "https://crates.io/crates/ructe"),
             ("warp", "https://crates.io/crates/warp"),
+            ("diesel", "https://diesel.rs/"),
+            ("ructe", "https://crates.io/crates/ructe"),
         ],
     )
 }

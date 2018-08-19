@@ -1,8 +1,9 @@
 @use templates::page_base;
+@use Session;
 
-@(next: Option<String>, message: Option<&str>)
+@(session: &Session, next: Option<String>, message: Option<&str>)
 
-@:page_base("login", {
+@:page_base(session, "login", {
     <form action="/login" method="post">
       @if let Some(message) = message {<p>@message</p>}
       <p><label for="user">User:</label>
