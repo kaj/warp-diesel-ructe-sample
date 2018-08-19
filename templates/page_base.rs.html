@@ -14,7 +14,7 @@
   <body>
     <header>
       <span>Example app</span>
-      @if let Some(u) = session.user() {<span class="user">@u.username (<a href="/logout">log out</a>)</span>}
+      @if let Some(u) = session.user() {<span class="user">@u (<a href="/logout">log out</a>)</span>}
       else { <span class="user">(<a href="/login">log in</a> or <a href="/signup">sign up</a>)</span> }
     </header>
 
