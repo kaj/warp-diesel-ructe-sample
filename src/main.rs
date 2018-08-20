@@ -1,5 +1,9 @@
 //! An example web service using ructe with the warp framework.
 #![deny(warnings)]
+// The new lint proc_macro_derive_resolution_fallback breaks diesel.
+// Current stable rustc (1.28.0) does not have the lint, so ignore unknowns.
+#![allow(unknown_lints)]
+#![allow(proc_macro_derive_resolution_fallback)]
 extern crate bcrypt;
 #[macro_use]
 extern crate diesel;
