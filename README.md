@@ -21,8 +21,8 @@ remainder of the session.
 
 ## Things that could use improvement:
 
-* Mainly, the routing provieded by wrap is very nice.
-  But it would be nice to be able to define routers and subrouters in a more
+* The routing provieded by wrap is very nice,
+  but it would be nice to be able to define routers and subrouters in a more
   tree-like way.
   Perhaps it is possible, and I just havn't found out how yet?
 
@@ -44,6 +44,9 @@ remainder of the session.
 * The code that handles the authentication and sessions should be
   externalized to a separate crate, but the session data should remain
   application-specific.
+  Generating and verifying the bcrypt hashes and session keys should be done
+  by the external crate, but actually storing them in the database, including
+  migrations to create the tables, should be done by the application.
 
 * CSRF protection is not yet implemented.
 
