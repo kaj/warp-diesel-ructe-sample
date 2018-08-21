@@ -22,7 +22,7 @@ remainder of the session.
 
 ## Things that could use improvement:
 
-* The routing provieded by wrap is very nice,
+* The routing provieded by warp is very nice,
   but it would be nice to be able to define routers and subrouters in a more
   tree-like way.
   Perhaps it is possible, and I just havn't found out how yet?
