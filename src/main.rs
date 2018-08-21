@@ -60,11 +60,12 @@ fn main() {
                     .and(index())
                     .and_then(signup_form)),
         )).or(post().and(
-            (s().and(path("login")).and(body::form()).and_then(do_login)).or(
-                s().and(path("signup"))
+            (s().and(path("login")).and(body::form()).and_then(do_login))
+                .or(s().and(path("logout")).and_then(do_logout))
+                .or(s()
+                    .and(path("signup"))
                     .and(body::form())
-                    .and_then(do_signup),
-            ),
+                    .and_then(do_signup)),
         )).recover(customize_error);
     warp::serve(routes).run(([127, 0, 0, 1], 3030));
 }
@@ -97,6 +98,18 @@ fn do_login(
             templates::login(o, &session, None, Some("Authentication failed"))
         })
     }
+}
+
+fn do_logout(mut session: Session) -> Result<impl Reply, Rejection> {
+    session.clear();
+    Response::builder()
+        .status(StatusCode::FOUND)
+        .header(header::LOCATION, "/")
+        .header(
+            header::SET_COOKIE,
+            format!("EXAUTH=; Max-Age=0; SameSite=Strict; HttpOpnly"),
+        ).body(b"".to_vec())
+        .map_err(|_| reject::server_error()) // TODO This seems ugly?
 }
 
 /// The data submitted by the login form.

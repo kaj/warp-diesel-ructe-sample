@@ -31,6 +31,22 @@ header {
     position: sticky;
     top: 0;
     z-index: 9999;
+
+    .user {
+	form {
+	    display: inline;
+	    button {
+	        border: 0;
+		font: inherit;
+		background: transparent;
+		padding: 0;
+		color: #805;
+		&:hover {
+		    text-decoration: underline;
+		}
+	    }
+	}
+    }
 }
 
 footer {
@@ -64,26 +80,26 @@ header, footer {
 main {
     flex-grow: 1;
     margin-bottom: 1em;
+
+    form {
+	border: $border;
+	margin: auto;
+	padding: 1em;
+	width: -moz-fit-content;
+	width: fit-content;
+
+	p {
+	    display: flex;
+	    flex-flow: row wrap;
+	    justify-content: space-between;
+	}
+	label {
+	    padding: .2em 1em .2em 0;
+	}
+    }
 }
 
 header, footer, main {
     flex-wrap: wrap;
     padding: 0 1ex;
-}
-
-form {
-    border: $border;
-    margin: auto;
-    padding: 1em;
-    width: -moz-fit-content;
-    width: fit-content;
-
-    p {
-	display: flex;
-	flex-flow: row wrap;
-	justify-content: space-between;
-    }
-    label {
-	padding: .2em 1em .2em 0;
-    }
 }

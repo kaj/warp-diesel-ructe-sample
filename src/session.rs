@@ -1,4 +1,4 @@
-use diesel::insert_into;
+use diesel;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
@@ -22,6 +22,7 @@ type PgPool = Pool<ConnectionManager<PgConnection>>;
 /// user data (e.g. a shopping cart in a web shop).
 pub struct Session {
     db: PooledPg,
+    id: Option<i32>,
     user: Option<User>,
 }
 
@@ -37,14 +38,16 @@ impl Session {
     ) -> Option<String> {
         if let Some(user) = User::authenticate(self.db(), username, password)
         {
-            info!("User {:?} authenticated", user);
+            debug!("User {:?} authenticated", user);
 
             let secret = random_key(48);
             use schema::sessions::dsl::*;
-            let result = insert_into(sessions)
+            let result = diesel::insert_into(sessions)
                 .values((user_id.eq(user.id), cookie.eq(&secret)))
-                .execute(self.db());
-            if Ok(1) == result {
+                .returning(id)
+                .get_results(self.db());
+            if let Ok([a]) = result.as_ref().map(|v| &**v) {
+                self.id = Some(*a);
                 self.user = Some(user);
                 return Some(secret);
             } else {
@@ -57,20 +60,51 @@ impl Session {
         None
     }
 
+    /// Get a Session from a database pool and a session key.
+    ///
+    /// The session key is checked against the database, and the
+    /// matching session is loaded.
+    /// The database pool handle is included in the session regardless
+    /// of if the session key is a valid session or not.
     pub fn from_key(db: PooledPg, sessionkey: Option<&str>) -> Self {
         use schema::sessions::dsl as s;
         use schema::users::dsl as u;
-        let user = sessionkey.and_then(|sessionkey| {
-            u::users
-                .select((u::id, u::username, u::realname))
-                .inner_join(s::sessions)
-                .filter(s::cookie.eq(&sessionkey))
-                .first::<User>(&db)
-                .ok()
-        });
-        info!("Got: {:?}", user);
-        Session { db, user }
+        let (id, user) = sessionkey
+            .and_then(|sessionkey| {
+                u::users
+                    .inner_join(s::sessions)
+                    .select((s::id, (u::id, u::username, u::realname)))
+                    .filter(s::cookie.eq(&sessionkey))
+                    .first::<(i32, User)>(&db)
+                    .ok()
+            }).map(|(i, u)| (Some(i), Some(u)))
+            .unwrap_or((None, None));
+
+        debug!("Got: #{:?} {:?}", id, user);
+        Session { db, id, user }
     }
+
+    /// Clear the part of this session that is session-specific.
+    ///
+    /// In effect, the database pool will remain, but the user will be
+    /// cleared, and the data in the sessions table for this session
+    /// will be deleted.
+    pub fn clear(&mut self) {
+        use schema::sessions::dsl as s;
+        if let Some(session_id) = self.id {
+            diesel::delete(s::sessions.filter(s::id.eq(session_id)))
+                .execute(self.db())
+                .map_err(|e| {
+                    error!(
+                        "Failed to delete session {}: {:?}",
+                        session_id, e
+                    );
+                }).ok();
+        }
+        self.id = None;
+        self.user = None;
+    }
+
     pub fn user(&self) -> Option<&User> {
         self.user.as_ref()
     }
