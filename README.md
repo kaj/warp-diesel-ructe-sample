@@ -2,8 +2,9 @@
 
 This application is intended as an example of a web service handling a login
 session.
-It uses the *warp* web framework, the *ructe* template engine and the
-*diesel* database layer.
+It uses the [warp](https://crates.io/crates/warp) web framework,
+the [ructe](https://crates.io/crates/ructe) template engine and
+the [diesel](https://diesel.rs/) database layer.
 
 [![Build Status](https://travis-ci.org/kaj/warp-diesel-ructe-sample.svg?branch=master)](https://travis-ci.org/kaj/warp-diesel-ructe-sample)
 
