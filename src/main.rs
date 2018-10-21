@@ -59,14 +59,16 @@ fn main() {
                     .and(path("signup"))
                     .and(index())
                     .and_then(signup_form)),
-        )).or(post().and(
+        ))
+        .or(post().and(
             (s().and(path("login")).and(body::form()).and_then(do_login))
                 .or(s().and(path("logout")).and_then(do_logout))
                 .or(s()
                     .and(path("signup"))
                     .and(body::form())
                     .and_then(do_signup)),
-        )).recover(customize_error);
+        ))
+        .recover(customize_error);
     warp::serve(routes).run(([127, 0, 0, 1], 3030));
 }
 
@@ -91,7 +93,8 @@ fn do_login(
             .header(
                 header::SET_COOKIE,
                 format!("EXAUTH={}; SameSite=Strict; HttpOpnly", cookie),
-            ).body(b"".to_vec())
+            )
+            .body(b"".to_vec())
             .map_err(|_| reject::server_error()) // TODO This seems ugly?
     } else {
         Response::builder().html(|o| {
@@ -108,7 +111,8 @@ fn do_logout(mut session: Session) -> Result<impl Reply, Rejection> {
         .header(
             header::SET_COOKIE,
             format!("EXAUTH=; Max-Age=0; SameSite=Strict; HttpOpnly"),
-        ).body(b"".to_vec())
+        )
+        .body(b"".to_vec())
         .map_err(|_| reject::server_error()) // TODO This seems ugly?
 }
 
@@ -137,14 +141,16 @@ fn do_signup(
             let hash = bcrypt::hash(&form.password, bcrypt::DEFAULT_COST)
                 .map_err(|e| format!("Hash failed: {}", e))?;
             Ok((form, hash))
-        }).and_then(|(form, hash)| {
+        })
+        .and_then(|(form, hash)| {
             use schema::users::dsl::*;
             insert_into(users)
                 .values((
                     username.eq(form.user),
                     realname.eq(form.realname),
                     password.eq(&hash),
-                )).execute(session.db())
+                ))
+                .execute(session.db())
                 .map_err(|e| format!("Oops: {}", e))
         });
     match result {

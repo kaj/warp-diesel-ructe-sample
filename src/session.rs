@@ -77,7 +77,8 @@ impl Session {
                     .filter(s::cookie.eq(&sessionkey))
                     .first::<(i32, User)>(&db)
                     .ok()
-            }).map(|(i, u)| (Some(i), Some(u)))
+            })
+            .map(|(i, u)| (Some(i), Some(u)))
             .unwrap_or((None, None));
 
         debug!("Got: #{:?} {:?}", id, user);
@@ -99,7 +100,8 @@ impl Session {
                         "Failed to delete session {}: {:?}",
                         session_id, e
                     );
-                }).ok();
+                })
+                .ok();
         }
         self.id = None;
         self.user = None;
@@ -132,7 +134,8 @@ pub fn create_session_filter(db_url: &str) -> BoxedFilter<(Session,)> {
                     Err(reject::server_error())
                 }
             }
-        }).boxed()
+        })
+        .boxed()
 }
 
 fn pg_pool(database_url: &str) -> PgPool {
