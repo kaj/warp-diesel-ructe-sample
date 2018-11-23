@@ -32,7 +32,10 @@ use std::io::{self, Write};
 use std::time::{Duration, SystemTime};
 use templates::statics::StaticFile;
 use warp::http::{header, Response, StatusCode};
-use warp::{reject, Filter, Rejection, Reply};
+use warp::{
+    reject::{custom, not_found},
+    Filter, Rejection, Reply,
+};
 
 /// Main program: Set up routes and start server.
 fn main() {
@@ -45,7 +48,7 @@ fn main() {
     );
     let s = move || pgsess.clone();
 
-    use warp::{body, get2 as get, index, path, post2 as post};
+    use warp::{body, get2 as get, path, path::end, post2 as post};
     let static_routes = get()
         .and(path("static"))
         .and(path::param())
@@ -53,12 +56,9 @@ fn main() {
     let routes = warp::any()
         .and(static_routes)
         .or(get().and(
-            (s().and(index()).and_then(home_page))
-                .or(s().and(path("login")).and(index()).and_then(login_form))
-                .or(s()
-                    .and(path("signup"))
-                    .and(index())
-                    .and_then(signup_form)),
+            (s().and(end()).and_then(home_page))
+                .or(s().and(path("login")).and(end()).and_then(login_form))
+                .or(s().and(path("signup")).and(end()).and_then(signup_form)),
         ))
         .or(post().and(
             (s().and(path("login")).and(body::form()).and_then(do_login))
@@ -95,7 +95,7 @@ fn do_login(
                 format!("EXAUTH={}; SameSite=Strict; HttpOpnly", cookie),
             )
             .body(b"".to_vec())
-            .map_err(|_| reject::server_error()) // TODO This seems ugly?
+            .map_err(custom)
     } else {
         Response::builder().html(|o| {
             templates::login(o, &session, None, Some("Authentication failed"))
@@ -113,7 +113,7 @@ fn do_logout(mut session: Session) -> Result<impl Reply, Rejection> {
             format!("EXAUTH=; Max-Age=0; SameSite=Strict; HttpOpnly"),
         )
         .body(b"".to_vec())
-        .map_err(|_| reject::server_error()) // TODO This seems ugly?
+        .map_err(custom)
 }
 
 /// The data submitted by the login form.
@@ -160,7 +160,7 @@ fn do_signup(
                 .header(header::LOCATION, "/")
                 // TODO: Set a session cookie?
                 .body(b"".to_vec())
-                .map_err(|_| reject::server_error()) // TODO This seems ugly?
+                .map_err(custom)
         }
         Err(msg) => Response::builder()
             .html(|o| templates::signup(o, &session, Some(&msg))),
@@ -224,7 +224,7 @@ fn static_file(name: String) -> Result<impl Reply, Rejection> {
             .body(data.content))
     } else {
         println!("Static file {} not found", name);
-        Err(reject::not_found())
+        Err(not_found())
     }
 }
 

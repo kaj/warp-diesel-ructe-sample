@@ -7,7 +7,7 @@ use rand::distributions::Alphanumeric;
 use rand::thread_rng;
 use rand::Rng;
 use warp::filters::{cookie, BoxedFilter};
-use warp::{self, reject, Filter};
+use warp::{self, reject::custom, Filter};
 
 type PooledPg = PooledConnection<ConnectionManager<PgConnection>>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
@@ -129,9 +129,9 @@ pub fn create_session_filter(db_url: &str) -> BoxedFilter<(Session,)> {
             let key = key.as_ref().map(|s| &**s);
             match pool.get() {
                 Ok(conn) => Ok(Session::from_key(conn, key)),
-                Err(_) => {
+                Err(e) => {
                     error!("Failed to get a db connection");
-                    Err(reject::server_error())
+                    Err(custom(e))
                 }
             }
         })
