@@ -6,10 +6,10 @@ authors = ["Rasmus Kaj <kaj@kth.se>"]
 build = "src/build.rs"
 
 [build-dependencies]
-ructe = { version = "0.5.2", features = ["sass", "mime03"] }
+ructe = { version = "0.5.8", features = ["sass", "mime03"] }
 
 [dependencies]
-warp = "0.1.9"
+warp = "0.1.13"
 mime = "0.3.0"
 env_logger = "0.6.0"
 log = "*"
@@ -17,5 +17,5 @@ diesel = { version = "1.0.0", features = ["r2d2", "postgres"] }
 dotenv = "0.13.0"
 serde = "1.0.0"
 serde_derive = "1.0.0"
-bcrypt = "0.2.0"
+bcrypt = "0.3.0"
 rand = "0.6.0"
