@@ -110,7 +110,7 @@ fn do_logout(mut session: Session) -> Result<impl Reply, Rejection> {
         .header(header::LOCATION, "/")
         .header(
             header::SET_COOKIE,
-            format!("EXAUTH=; Max-Age=0; SameSite=Strict; HttpOpnly"),
+            "EXAUTH=; Max-Age=0; SameSite=Strict; HttpOpnly",
         )
         .body(b"".to_vec())
         .map_err(custom)
