@@ -1,8 +1,9 @@
+use crate::templates::ToHtml;
 use bcrypt;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
+use log::error;
 use std::io::{self, Write};
-use templates::ToHtml;
 
 #[derive(Debug, Queryable)]
 pub struct User {
@@ -17,7 +18,7 @@ impl User {
         user: &str,
         pass: &str,
     ) -> Option<Self> {
-        use schema::users::dsl::*;
+        use crate::schema::users::dsl::*;
         let (user, hash) = match users
             .filter(username.eq(user))
             .select(((id, username, realname), password))

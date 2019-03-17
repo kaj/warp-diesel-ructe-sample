@@ -1,5 +1,5 @@
-@use templates::statics::*;
-@use footer;
+@use super::statics::*;
+@use crate::footer;
 @use warp::http::StatusCode;
 
 @(code: StatusCode, message: &str)

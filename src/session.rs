@@ -1,8 +1,9 @@
+use crate::models::User;
 use diesel;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
-use models::User;
+use log::{debug, error};
 use rand::distributions::Alphanumeric;
 use rand::thread_rng;
 use rand::Rng;
@@ -41,7 +42,7 @@ impl Session {
             debug!("User {:?} authenticated", user);
 
             let secret = random_key(48);
-            use schema::sessions::dsl::*;
+            use crate::schema::sessions::dsl::*;
             let result = diesel::insert_into(sessions)
                 .values((user_id.eq(user.id), cookie.eq(&secret)))
                 .returning(id)
@@ -67,8 +68,8 @@ impl Session {
     /// The database pool handle is included in the session regardless
     /// of if the session key is a valid session or not.
     pub fn from_key(db: PooledPg, sessionkey: Option<&str>) -> Self {
-        use schema::sessions::dsl as s;
-        use schema::users::dsl as u;
+        use crate::schema::sessions::dsl as s;
+        use crate::schema::users::dsl as u;
         let (id, user) = sessionkey
             .and_then(|sessionkey| {
                 u::users
@@ -91,7 +92,7 @@ impl Session {
     /// cleared, and the data in the sessions table for this session
     /// will be deleted.
     pub fn clear(&mut self) {
-        use schema::sessions::dsl as s;
+        use crate::schema::sessions::dsl as s;
         if let Some(session_id) = self.id {
             diesel::delete(s::sessions.filter(s::id.eq(session_id)))
                 .execute(self.db())

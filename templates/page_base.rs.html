@@ -1,5 +1,5 @@
-@use templates::statics::style_css;
-@use {footer, Session};
+@use super::statics::style_css;
+@use crate::{footer, Session};
 
 @(session: &Session, title: &str, content: Content)
 

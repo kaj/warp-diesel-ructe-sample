@@ -1,36 +1,23 @@
 //! An example web service using ructe with the warp framework.
 #![deny(warnings)]
-// The new lint proc_macro_derive_resolution_fallback breaks diesel.
-// Current stable rustc (1.28.0) does not have the lint, so ignore unknowns.
-#![allow(unknown_lints)]
-#![allow(proc_macro_derive_resolution_fallback)]
-extern crate bcrypt;
 #[macro_use]
 extern crate diesel;
-extern crate dotenv;
-extern crate env_logger;
-#[macro_use]
-extern crate log;
-extern crate mime;
-extern crate rand;
-#[macro_use]
-extern crate serde_derive;
-extern crate warp;
 
 mod models;
-mod render_ructe;
 mod schema;
 mod session;
 
 use diesel::insert_into;
 use diesel::prelude::*;
 use dotenv::dotenv;
-use render_ructe::RenderRucte;
+use log::info;
+use serde_derive::Deserialize;
 use session::{create_session_filter, Session};
 use std::env;
 use std::io::{self, Write};
 use std::time::{Duration, SystemTime};
 use templates::statics::StaticFile;
+use templates::RenderRucte;
 use warp::http::{header, Response, StatusCode};
 use warp::{
     reject::{custom, not_found},
