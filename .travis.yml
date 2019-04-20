@@ -7,7 +7,7 @@ before_script:
  - cargo update || true
 matrix:
   include:
-   - rust: nightly
+   - rust: stable
      env: TASK=rustfmt
      before_script: rustup component add rustfmt-preview
      script: cargo fmt -- --check
