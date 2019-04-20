@@ -11,7 +11,7 @@ use diesel::insert_into;
 use diesel::prelude::*;
 use dotenv::dotenv;
 use log::info;
-use serde_derive::Deserialize;
+use serde::Deserialize;
 use session::{create_session_filter, Session};
 use std::env;
 use std::io::{self, Write};

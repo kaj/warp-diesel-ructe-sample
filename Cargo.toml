@@ -13,10 +13,9 @@ ructe = { version = "0.6.2", features = ["sass", "mime03", "warp"] }
 warp = "0.1.13"
 mime = "0.3.0"
 env_logger = "0.6.0"
-log = "*"
+log = "0.4.6"
 diesel = { version = "1.0.0", features = ["r2d2", "postgres"] }
 dotenv = "0.13.0"
-serde = "1.0.0"
-serde_derive = "1.0.0"
-bcrypt = "0.3.0"
+serde = { version = "1.0.0", features = ["derive"] }
+bcrypt = "0.4.0"
 rand = "0.6.0"
