@@ -10,12 +10,12 @@ build = "src/build.rs"
 ructe = { version = "0.6.2", features = ["sass", "mime03", "warp"] }
 
 [dependencies]
-warp = "0.1.13"
+warp = "0.1.14"
 mime = "0.3.0"
 env_logger = "0.6.0"
 log = "0.4.6"
 diesel = { version = "1.0.0", features = ["r2d2", "postgres"] }
-dotenv = "0.13.0"
+dotenv = "0.14.1"
 serde = { version = "1.0.0", features = ["derive"] }
 bcrypt = "0.4.0"
 rand = "0.6.0"
