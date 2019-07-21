@@ -117,8 +117,7 @@ impl Session {
 }
 
 fn random_key(len: usize) -> String {
-    let mut rng = thread_rng();
-    rng.sample_iter(&Alphanumeric).take(len).collect()
+    thread_rng().sample_iter(&Alphanumeric).take(len).collect()
 }
 
 pub fn create_session_filter(db_url: &str) -> BoxedFilter<(Session,)> {
