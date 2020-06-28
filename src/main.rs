@@ -18,14 +18,12 @@ use std::io::{self, Write};
 use std::time::{Duration, SystemTime};
 use templates::statics::StaticFile;
 use templates::RenderRucte;
-use warp::http::{header, Response, StatusCode};
-use warp::{
-    reject::{custom, not_found},
-    Filter, Rejection, Reply,
-};
+use warp::http::{header, response::Builder, StatusCode};
+use warp::{reject::not_found, reply::Response, Filter, Rejection, Reply};
 
 /// Main program: Set up routes and start server.
-fn main() {
+#[tokio::main]
+async fn main() {
     dotenv().ok();
     env_logger::init();
 
@@ -35,7 +33,7 @@ fn main() {
     );
     let s = move || pgsess.clone();
 
-    use warp::{body, get2 as get, path, path::end, post2 as post};
+    use warp::{body, get, path, path::end, post};
     let static_routes = get()
         .and(path("static"))
         .and(path::param())
@@ -56,12 +54,12 @@ fn main() {
                     .and_then(do_signup)),
         ))
         .recover(customize_error);
-    warp::serve(routes).run(([127, 0, 0, 1], 3030));
+    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
 /// Render a login form.
-fn login_form(session: Session) -> Result<impl Reply, Rejection> {
-    Response::builder().html(|o| templates::login(o, &session, None, None))
+async fn login_form(session: Session) -> Result<Response, Rejection> {
+    Builder::new().html(|o| templates::login(o, &session, None, None))
 }
 
 /// Verify a login attempt.
@@ -69,38 +67,36 @@ fn login_form(session: Session) -> Result<impl Reply, Rejection> {
 /// If the credentials in the LoginForm are correct, redirect to the
 /// home page.
 /// Otherwise, show the login form again, but with a message.
-fn do_login(
+async fn do_login(
     mut session: Session,
     form: LoginForm,
-) -> Result<impl Reply, Rejection> {
+) -> Result<Response, Rejection> {
     if let Some(cookie) = session.authenticate(&form.user, &form.password) {
-        Response::builder()
+        Builder::new()
             .status(StatusCode::FOUND)
             .header(header::LOCATION, "/")
             .header(
                 header::SET_COOKIE,
                 format!("EXAUTH={}; SameSite=Strict; HttpOpnly", cookie),
             )
-            .body(b"".to_vec())
-            .map_err(custom)
+            .html(|o| writeln!(o, ""))
     } else {
-        Response::builder().html(|o| {
+        Builder::new().html(|o| {
             templates::login(o, &session, None, Some("Authentication failed"))
         })
     }
 }
 
-fn do_logout(mut session: Session) -> Result<impl Reply, Rejection> {
+async fn do_logout(mut session: Session) -> Result<Response, Rejection> {
     session.clear();
-    Response::builder()
+    Builder::new()
         .status(StatusCode::FOUND)
         .header(header::LOCATION, "/")
         .header(
             header::SET_COOKIE,
             "EXAUTH=; Max-Age=0; SameSite=Strict; HttpOpnly",
         )
-        .body(b"".to_vec())
-        .map_err(custom)
+        .html(|o| writeln!(o, ""))
 }
 
 /// The data submitted by the login form.
@@ -112,15 +108,15 @@ struct LoginForm {
 }
 
 /// Render a signup form.
-fn signup_form(session: Session) -> Result<impl Reply, Rejection> {
-    Response::builder().html(|o| templates::signup(o, &session, None))
+async fn signup_form(session: Session) -> Result<Response, Rejection> {
+    Builder::new().html(|o| templates::signup(o, &session, None))
 }
 
 /// Handle a submitted signup form.
-fn do_signup(
+async fn do_signup(
     session: Session,
     form: SignupForm,
-) -> Result<impl Reply, Rejection> {
+) -> Result<Response, Rejection> {
     let result = form
         .validate()
         .map_err(|e| e.to_string())
@@ -142,14 +138,13 @@ fn do_signup(
         });
     match result {
         Ok(_) => {
-            Response::builder()
+            Builder::new()
                 .status(StatusCode::FOUND)
                 .header(header::LOCATION, "/")
                 // TODO: Set a session cookie?
-                .body(b"".to_vec())
-                .map_err(custom)
+                .html(|o| writeln!(o, ""))
         }
-        Err(msg) => Response::builder()
+        Err(msg) => Builder::new()
             .html(|o| templates::signup(o, &session, Some(&msg))),
     }
 }
@@ -178,9 +173,9 @@ impl SignupForm {
 }
 
 /// Home page handler; just render a template with some arguments.
-fn home_page(session: Session) -> Result<impl Reply, Rejection> {
+async fn home_page(session: Session) -> Result<impl Reply, Rejection> {
     info!("Visiting home_page as {:?}", session.user());
-    Response::builder().html(|o| {
+    Builder::new().html(|o| {
         templates::page(o, &session, &[("first", 3), ("second", 7)])
     })
 }
@@ -201,14 +196,15 @@ fn footer(out: &mut dyn Write) -> io::Result<()> {
 /// Handler for static files.
 /// Create a response from the file data with a correct content type
 /// and a far expires header (or a 404 if the file does not exist).
-fn static_file(name: String) -> Result<impl Reply, Rejection> {
+async fn static_file(name: String) -> Result<Response, Rejection> {
     if let Some(data) = StaticFile::get(&name) {
         let _far_expires = SystemTime::now() + FAR;
-        Ok(Response::builder()
+        Ok(Builder::new()
             .status(StatusCode::OK)
             .header("content-type", data.mime.as_ref())
             // TODO .header("expires", _far_expires)
-            .body(data.content))
+            .body(data.content.into())
+            .unwrap())
     } else {
         println!("Static file {} not found", name);
         Err(not_found())
@@ -219,25 +215,23 @@ fn static_file(name: String) -> Result<impl Reply, Rejection> {
 static FAR: Duration = Duration::from_secs(180 * 24 * 60 * 60);
 
 /// Create custom error pages.
-fn customize_error(err: Rejection) -> Result<impl Reply, Rejection> {
-    match err.status() {
-        StatusCode::NOT_FOUND => {
-            eprintln!("Got a 404: {:?}", err);
-            // We have a custom 404 page!
-            Response::builder().status(StatusCode::NOT_FOUND).html(|o| {
-                templates::error(
-                    o,
-                    StatusCode::NOT_FOUND,
-                    "The resource you requested could not be located.",
-                )
-            })
-        }
-        code => {
-            eprintln!("Got a {}: {:?}", code.as_u16(), err);
-            Response::builder()
-                .status(code)
-                .html(|o| templates::error(o, code, "Something went wrong."))
-        }
+async fn customize_error(err: Rejection) -> Result<Response, Rejection> {
+    if err.is_not_found() {
+        eprintln!("Got a 404: {:?}", err);
+        // We have a custom 404 page!
+        Builder::new().status(StatusCode::NOT_FOUND).html(|o| {
+            templates::error(
+                o,
+                StatusCode::NOT_FOUND,
+                "The resource you requested could not be located.",
+            )
+        })
+    } else {
+        let code = StatusCode::INTERNAL_SERVER_ERROR; // FIXME
+        eprintln!("Got a {}: {:?}", code.as_u16(), err);
+        Builder::new()
+            .status(code)
+            .html(|o| templates::error(o, code, "Something went wrong."))
     }
 }
 

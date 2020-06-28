@@ -7,10 +7,10 @@ edition = "2018"
 build = "src/build.rs"
 
 [build-dependencies]
-ructe = { version = "0.9.0", features = ["sass", "mime03", "warp"] }
+ructe = { version = "0.11.4", features = ["sass", "mime03", "warp02"] }
 
 [dependencies]
-warp = "0.1.17"
+warp = "0.2.3"
 mime = "0.3.0"
 env_logger = "0.7.1"
 log = "0.4.6"
@@ -19,3 +19,4 @@ dotenv = "0.15.0"
 serde = { version = "1.0.0", features = ["derive"] }
 bcrypt = "0.8.1"
 rand = "0.7.0"
+tokio = { version = "0.2", features = ["macros"] }

@@ -1,5 +1,4 @@
 use crate::templates::ToHtml;
-use bcrypt;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use log::error;

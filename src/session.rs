@@ -1,5 +1,4 @@
 use crate::models::User;
-use diesel;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
@@ -8,10 +7,14 @@ use rand::distributions::Alphanumeric;
 use rand::thread_rng;
 use rand::Rng;
 use warp::filters::{cookie, BoxedFilter};
-use warp::{self, reject::custom, Filter};
+use warp::{self, Filter};
 
 type PooledPg = PooledConnection<ConnectionManager<PgConnection>>;
 type PgPool = Pool<ConnectionManager<PgConnection>>;
+
+#[derive(Debug)]
+pub struct NoDbReady;
+impl warp::reject::Reject for NoDbReady {}
 
 /// A Session object is sent to most handler methods.
 ///
@@ -126,12 +129,14 @@ pub fn create_session_filter(db_url: &str) -> BoxedFilter<(Session,)> {
         .and(cookie::optional("EXAUTH"))
         .and_then(move |key: Option<String>| {
             let pool = pool.clone();
-            let key = key.as_ref().map(|s| &**s);
-            match pool.get() {
-                Ok(conn) => Ok(Session::from_key(conn, key)),
-                Err(e) => {
-                    error!("Failed to get a db connection");
-                    Err(custom(e))
+            async move {
+                let key = key.as_ref().map(|s| &**s);
+                match pool.get() {
+                    Ok(conn) => Ok(Session::from_key(conn, key)),
+                    Err(e) => {
+                        error!("Failed to get a db connection: {}", e);
+                        Err(warp::reject::custom(NoDbReady))
+                    }
                 }
             }
         })
