@@ -40,19 +40,24 @@ async fn main() {
         .and_then(static_file);
     let routes = warp::any()
         .and(static_routes)
-        .or(get().and(
-            (s().and(end()).and_then(home_page))
-                .or(s().and(path("login")).and(end()).and_then(login_form))
-                .or(s().and(path("signup")).and(end()).and_then(signup_form)),
+        .or(path("login").and(end()).and(
+            get()
+                .and(s())
+                .and_then(login_form)
+                .or(post().and(s()).and(body::form()).and_then(do_login)),
         ))
-        .or(post().and(
-            (s().and(path("login")).and(body::form()).and_then(do_login))
-                .or(s().and(path("logout")).and_then(do_logout))
-                .or(s()
-                    .and(path("signup"))
-                    .and(body::form())
-                    .and_then(do_signup)),
+        .or(path("logout")
+            .and(end())
+            .and(post())
+            .and(s())
+            .and_then(do_logout))
+        .or(path("signup").and(end()).and(
+            get()
+                .and(s())
+                .and_then(signup_form)
+                .or(post().and(s()).and(body::form()).and_then(do_signup)),
         ))
+        .or(s().and(end()).and(get()).and_then(home_page))
         .recover(customize_error);
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
