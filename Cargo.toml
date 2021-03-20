@@ -1,16 +1,16 @@
 [package]
 name = "warp-diesel-ructe-sample"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Rasmus Kaj <kaj@kth.se>"]
 edition = "2018"
 
 build = "src/build.rs"
 
 [build-dependencies]
-ructe = { version = "0.13", features = ["sass", "warp02"] }
+ructe = { version = "0.13", features = ["sass", "warp03"] }
 
 [dependencies]
-warp = "0.2.3"
+warp = "0.3.0"
 mime = "0.3.0"
 env_logger = "0.8"
 log = "0.4.6"
@@ -19,4 +19,4 @@ dotenv = "0.15.0"
 serde = { version = "1.0.0", features = ["derive"] }
 bcrypt = "0.9"
 rand = "0.8.3"
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "1.4", features = ["macros", "rt-multi-thread"] }
