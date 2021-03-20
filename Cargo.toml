@@ -18,5 +18,5 @@ diesel = { version = "1.4.0", features = ["r2d2", "postgres"] }
 dotenv = "0.15.0"
 serde = { version = "1.0.0", features = ["derive"] }
 bcrypt = "0.9"
-rand = "0.7.0"
+rand = "0.8.3"
 tokio = { version = "0.2", features = ["macros"] }
