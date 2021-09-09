@@ -82,7 +82,7 @@ async fn do_login(
             .header(header::LOCATION, "/")
             .header(
                 header::SET_COOKIE,
-                format!("EXAUTH={}; SameSite=Strict; HttpOpnly", cookie),
+                format!("EXAUTH={}; SameSite=Strict; HttpOnly", cookie),
             )
             .html(|o| writeln!(o, ""))
     } else {
@@ -99,7 +99,7 @@ async fn do_logout(mut session: Session) -> Result<Response, Rejection> {
         .header(header::LOCATION, "/")
         .header(
             header::SET_COOKIE,
-            "EXAUTH=; Max-Age=0; SameSite=Strict; HttpOpnly",
+            "EXAUTH=; Max-Age=0; SameSite=Strict; HttpOnly",
         )
         .html(|o| writeln!(o, ""))
 }
